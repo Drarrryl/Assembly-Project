@@ -20,6 +20,9 @@ ADDR_DSPL:
 	.globl main
 
 main:
+	li $v0, 32
+	li $a0, 1
+
     li $t1, 0xff0000        # $t1 = red
     li $t2, 0x00ff00        # $t2 = green
     li $t3, 0x0000ff        # $t3 = blue
@@ -29,8 +32,8 @@ main:
     sw $t1, 0($t0)          # paint the first unit (i.e., top-left) red
     sw $t2, 4($t0)          # paint the second unit on the first row green
     sw $t3, 128($t0)        # paint the first unit on the second row blue
-    add $t4, $t1, $t2
-    subi $t2, $t4, 0x666600
+    add $t4, $t3, $t2
+    subi $t2, $t4, 0x004444
     
     add $t0, $t0, 132 # Starting pixel
     addi $t4, $t0, 400 # End 40 units to the right
@@ -42,6 +45,7 @@ main:
         j rem_prev
         back:
             addi $t0, $t0, 4         # paint the curr pixel green
+            syscall
             j loop_start 
     
     # Remove prev

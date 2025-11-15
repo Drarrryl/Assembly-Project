@@ -1,8 +1,8 @@
 ################# CSC258 Assembly Final Project ###################
 # This file contains our implementation of Columns.
 #
-# Student 1: Name, Student Number
-# Student 2: Name, Student Number (if applicable)
+# Student 1: Yujin Kim, 1009852633
+# Student 2: Darryl, Student Number (if applicable)
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
@@ -36,7 +36,8 @@ ADDR_KBRD:
 	.text
 	.globl main
 
-    # Run the game.
+    # Run the game
+    
 main:
     lw $t0, ADDR_DSPL
     
@@ -86,6 +87,8 @@ main:
     jal make_score_txt
     
     move $t6, $t0
+    
+    # Start the game
     
     j game_loop
     
@@ -494,6 +497,8 @@ main:
         li $t2, 0x555555
         lw $t3, -4($t0)
         beq $t2, $t3, end_key
+        lw $t4, 252($t0)
+        bne $zero, $t4, end_key
         addi $t7, $t0, 384
     	j move_left
     respond_to_S:       # Moves the column down by 1 unit
@@ -505,6 +510,8 @@ main:
         li $t2, 0x555555
         lw $t3, 4($t0)
         beq $t2, $t3, end_key
+        lw $t4, 260($t0)
+        bne $zero, $t4, end_key
         addi $t7, $t0, 384
     	j move_right
     respond_to_Q:       # Quits the program
@@ -580,10 +587,19 @@ check_bottom:
     j end_check
     stop:
         # addi $t0, $t0, -128
-        # jal check_win
+        jal check_matches
+        
+        jal check_game_over
+        
+        li $v0, 32
+        li $a0, 510     # Sleep for 30 frames
+        syscall
+        
         jal make_column
+        
         move $t0, $t8
         move $t6, $t8
+        
         j end_key
 
 down_reset_start_pos:
@@ -591,7 +607,7 @@ down_reset_start_pos:
     end_check:
         addi $t6, $t6, 128
         move $t0, $t6
-        j end_key
+        j end_key    
 
 shift:
     lw $t2, 0($t0) # Prev color
@@ -648,7 +664,6 @@ clear_pause:
     addi $sp, $sp, 4    # Move the stack to its original location
     jr $ra
     
-
 repaint:
     move $t6, $t0
     lw $t0, ADDR_DSPL
@@ -677,6 +692,269 @@ repaint_reset_start_pos:
 gravity:
     li $t9, 0
     j respond_to_S
+
+check_matches:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    loop_clear_matches:     # Find matches until no matches found
+        jal clear_matches
+        beq $v0, $zero, end_check_matches   # No matches found
+        
+        li $v0, 32
+        li $a0, 510     # Sleep for 30 frames
+        syscall
+        
+        jal drop_gems
+        j loop_clear_matches
+    
+    end_check_matches:
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4
+        jr $ra
+
+clear_matches:
+    li $v0, 0   # $v0 = 0 -> no matches found $v0 = 1 -> at least one match found
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 132  # Start at the first cell inside the border
+    
+    # Check horizontal match (x < 5, y < 15)
+    
+    li $t1, 0   # y index
+    li $t2, 14   # y upper bound
+    horiz_y_loop:
+        beq $t1, $t2, end_horiz_y_loop
+        li $t3, 0   # x index
+        li $t4, 5   # x upper bound
+        horiz_x_loop:
+            beq $t3, $t4, end_horiz_x_loop
+            lw $t5, 0($t0)
+            
+            # Empty cell
+            beq $t5, $zero, horiz_skip_cell
+            
+            lw $t6, 4($t0)
+            lw $t7, 8($t0)
+            bne $t5, $t6, horiz_skip_cell
+            bne $t6, $t7, horiz_skip_cell
+            
+            # Horizontal match
+            sw $zero, 0($t0)
+            sw $zero, 4($t0)
+            sw $zero, 8($t0)
+            
+            li $v0, 1   # A match was found
+            
+            horiz_skip_cell:
+            addi $t0, $t0, 4
+            addi $t3, $t3, 1
+            j horiz_x_loop
+        end_horiz_x_loop:
+        addi $t0, $t0, -20
+        addi $t0, $t0, 128
+        addi $t1, $t1, 1
+        j horiz_y_loop
+    end_horiz_y_loop:
+    
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 132
+    
+    # Check vertical match (x < 7, y < 12)
+    
+    li $t1, 0   # y index
+    li $t2, 12   # y upper bound
+    vert_y_loop:
+        beq $t1, $t2, end_vert_y_loop
+        li $t3, 0   # x index
+        li $t4, 7   # x upper bound
+        vert_x_loop:
+            beq $t3, $t4, end_vert_x_loop
+            lw $t5, 0($t0)
+            
+            # Empty cell
+            beq $t5, $zero, vert_skip_cell
+            
+            lw $t6, 128($t0)
+            lw $t7, 256($t0)
+            bne $t5, $t6, vert_skip_cell
+            bne $t6, $t7, vert_skip_cell
+            
+            # Vertical match
+            sw $zero, 0($t0)
+            sw $zero, 128($t0)
+            sw $zero, 256($t0)
+            
+            li $v0, 1   # A match was found
+            
+            vert_skip_cell:
+            addi $t0, $t0, 4
+            addi $t3, $t3, 1
+            j vert_x_loop
+        end_vert_x_loop:
+        addi $t0, $t0, -28
+        addi $t0, $t0, 128
+        addi $t1, $t1, 1
+        j vert_y_loop
+    end_vert_y_loop:
+    
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 132
+    
+    # Check diagonal down match (x < 5, y < 12)
+    
+    li $t1, 0   # y index
+    li $t2, 12   # y upper bound
+    diag_down_y_loop:
+        beq $t1, $t2, end_diag_down_y_loop
+        li $t3, 0   # x index
+        li $t4, 5   # x upper bound
+        diag_down_x_loop:
+            beq $t3, $t4, end_diag_down_x_loop
+            lw $t5, 0($t0)
+            
+            # Empty cell
+            beq $t5, $zero, diag_down_skip_cell
+            
+            lw $t6, 132($t0)
+            lw $t7, 264($t0)
+            bne $t5, $t6, diag_down_skip_cell
+            bne $t6, $t7, diag_down_skip_cell
+            
+            # Diagonal down match
+            sw $zero, 0($t0)
+            sw $zero, 132($t0)
+            sw $zero, 264($t0)
+            
+            li $v0, 1   # A match was found
+            
+            diag_down_skip_cell:
+            addi $t0, $t0, 4
+            addi $t3, $t3, 1
+            j diag_down_x_loop
+        end_diag_down_x_loop:
+        addi $t0, $t0, -20
+        addi $t0, $t0, 128
+        addi $t1, $t1, 1
+        j diag_down_y_loop
+    end_diag_down_y_loop:
+    
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 388  # Start at the first cell of the third row inside the border
+    
+    # Check diagonal up match (x < 5, y < 12)
+    
+    li $t1, 0   # y index
+    li $t2, 12   # y upper bound
+    diag_up_y_loop:
+        beq $t1, $t2, end_diag_up_y_loop
+        li $t3, 0   # x index
+        li $t4, 5   # x upper bound
+        diag_up_x_loop:
+            beq $t3, $t4, end_diag_up_x_loop
+            lw $t5, 0($t0)
+            
+            # Empty cell
+            beq $t5, $zero, diag_up_skip_cell
+            
+            lw $t6, -128($t0)
+            lw $t7, -248($t0)
+            bne $t5, $t6, diag_up_skip_cell
+            bne $t6, $t7, diag_up_skip_cell
+            
+            # Diagonal up match
+            sw $zero, 0($t0)
+            sw $zero, -128($t0)
+            sw $zero, -248($t0)
+            
+            li $v0, 1   # A match was found
+            
+            diag_up_skip_cell:
+            addi $t0, $t0, 4
+            addi $t3, $t3, 1
+            j diag_up_x_loop
+        end_diag_up_x_loop:
+        addi $t0, $t0, -20
+        addi $t0, $t0, 128
+        addi $t1, $t1, 1
+        j diag_up_y_loop
+    end_diag_up_y_loop:
+    
+    jr $ra
+
+drop_gems:                
+    li $t1, 0
+    li $t2, 14
+    drop_gems_loop:
+        beq $t1, $t2, end_drop_gems
+        
+        lw $t0, ADDR_DSPL
+        addi $t0, $t0, 1668     # Start at the first cell of the second last row
+        
+        li $t3, 0
+        li $t4, 7
+        drop_gems_x_loop:
+            beq $t3, $t4, end_drop_gems_x_loop
+            li $t5, 13
+            drop_gems_y_loop:
+                beq $zero, $t5, end_drop_gems_y_loop
+                
+                lw $t6, 0($t0)      # Current color
+                lw $t7, 128($t0)    # Below color
+                
+                beq $t6, $zero, skip_drop
+                bne $t7, $zero, skip_drop
+                
+                # Drop gem
+                sw $zero, 0($t0)
+                sw $t6, 128($t0)
+                
+                skip_drop:
+                    addi $t5, $t5, -1
+                    addi $t0, $t0, -128
+                    j drop_gems_y_loop
+                    
+            end_drop_gems_y_loop:
+                addi $t3, $t3, 1
+                addi $t0, $t0, 1664     # Return to the second last row
+                addi $t0, $t0, 4        # Move 1 column right
+                j drop_gems_x_loop
+        
+        end_drop_gems_x_loop:
+            addi $t1, $t1, 1
+            j drop_gems_loop
+            
+end_drop_gems:
+    jr $ra
+
+check_game_over:
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 132
+    
+    li $t1, 0       # x index
+    li $t2, 7        # x upper bound
+    check_game_over_loop:
+        beq $t1, $t2, check_middle_space
+        lw $t3, 0($t0)
+        bne $t3, $zero, game_over   # gem found -> game over
+        
+        addi $t0, $t0, 4
+        addi $t1, $t1, 1
+        j check_game_over_loop
+    
+    check_middle_space:
+        lw $t0, ADDR_DSPL
+        addi $t0, $t0, 144  # Set to middle of the first row
+        lw $t3, 128($t0)
+        bne $t3, $zero, game_over   # Column generating space is occupied -> game over
+        lw $t3, 256($t0)
+        bne $t3, $zero, game_over   # Column generating space is occupied -> game over
+    
+end_check_game_over:
+    jr $ra
+
+game_over:
+    li $v0, 10
+    syscall
 
 game_loop:
     lw $t1, ADDR_KBRD               # $t1 = base address for keyboard

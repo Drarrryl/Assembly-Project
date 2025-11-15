@@ -75,14 +75,36 @@ main:
     move $a3, $s6
     jal line_vert
     
+    li $a0, 9
+    li $a1, 0
+    li $a2, 2
+    move $a3, $s6
+    jal line_horiz
+    
+    li $a0, 9
+    li $a1, 4
+    li $a2, 12
+    move $a3, $s6
+    jal line_vert
+    
+    li $a0, 10
+    li $a1, 1
+    li $a2, 15
+    move $a3, $s6
+    jal line_vert
+    
+    
     # End Draw Gray Border
     
     # Make initial and recurring (3x1) column
     
     jal make_column
+    jal move_column
     
-    move $t6, $t8 # Initialize $t6 as the start position of the column (top block)
-    move $t0, $t8 # Initialize $t0 as the start position of the column (top block)
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 144
+    
+    move $t6, $t0 # Initialize $t6 as the start position of the column (top block)
     
     jal make_score_txt
     
@@ -94,8 +116,7 @@ main:
     
     make_column:
     lw $t0, ADDR_DSPL
-    addi $t0, $t0, 144  # Start pixel in the middle
-    move $t8, $t0       # Store top block position in $t8 for later
+    addi $t0, $t0, 164  # Start pixel on the side panel
     addi $t7, $t0, 384  
     draw_columns:
         beq $t0, $t7, end_draw_col
@@ -148,6 +169,28 @@ main:
     jr $ra
     
     # End drawing of column
+    
+    move_column:
+        addi $sp, $sp, -4
+        sw $ra, 0($sp)
+        
+        lw $t0, ADDR_DSPL
+        addi $t0, $t0, 164  # Set to the first cell of the column on the side panel
+        lw $t1, 0($t0)      # Store color of the first cell in $t1
+        lw $t2, 128($t0)    # Store color of the second st cell in $t2
+        lw $t3, 256($t0)    # Store color of the third cell in $t3
+        
+        lw $t0, ADDR_DSPL
+        addi $t0, $t0, 144      # Set to the middle of the playing field
+        sw $t1, 0($t0)          # Set color of the first cell of the column
+        sw $t2, 128($t0)        # Set color of the second cell of the column
+        sw $t3, 256($t0)        # Set color of the third cell of the column
+        
+        jal make_column
+        
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4
+        jr $ra
     
     make_score_txt:
         addi $sp, $sp, -4   # Move the stack to an empty location
@@ -502,6 +545,8 @@ main:
         addi $t7, $t0, 384
     	j move_left
     respond_to_S:       # Moves the column down by 1 unit
+        move $t0, $t6
+    
         li $t2, 0x555555
         lw $t3, 384($t0)
         beq $t2, $t3, end_key
@@ -595,10 +640,11 @@ check_bottom:
         li $a0, 510     # Sleep for 30 frames
         syscall
         
-        jal make_column
+        jal move_column
         
-        move $t0, $t8
-        move $t6, $t8
+        lw  $t0, ADDR_DSPL
+        addi $t0, $t0, 144
+        move $t6, $t0
         
         j end_key
 

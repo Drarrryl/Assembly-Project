@@ -902,14 +902,14 @@ clear_matches:
             # Empty cell
             beq $t5, $zero, diag_up_skip_cell
             
-            lw $t6, -128($t0)
+            lw $t6, -124($t0)
             lw $t7, -248($t0)
             bne $t5, $t6, diag_up_skip_cell
             bne $t6, $t7, diag_up_skip_cell
             
             # Diagonal up match
             sw $zero, 0($t0)
-            sw $zero, -128($t0)
+            sw $zero, -124($t0)
             sw $zero, -248($t0)
             
             li $v0, 1   # A match was found

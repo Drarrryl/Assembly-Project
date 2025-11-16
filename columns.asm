@@ -2,16 +2,16 @@
 # This file contains our implementation of Columns.
 #
 # Student 1: Yujin Kim, 1009852633
-# Student 2: Darryl, Student Number (if applicable)
+# Student 2: Darryl Lubin, 1009115191
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
 #
 ######################## Bitmap Display Configuration ########################
-# - Unit width in pixels:       TODO
-# - Unit height in pixels:      TODO
-# - Display width in pixels:    TODO
-# - Display height in pixels:   TODO
+# - Unit width in pixels:       8
+# - Unit height in pixels:      8
+# - Display width in pixels:    256
+# - Display height in pixels:   256
 # - Base Address for Display:   0x10008000 ($gp)
 ##############################################################################
 
@@ -606,6 +606,7 @@ right_reset_start_pos:
     j end_key
 
 move_down:
+    jal check_bottom
     lw $t2, 0($t0) # Prev color
     li $t4, 0x000000
     sw $t4, 0($t0) # Displace
@@ -623,7 +624,7 @@ move_down:
         j next_down
     
 check_bottom:
-    lw $t1, 0($t0)
+    lw $t1, 384($t0)
     beq $t1, $s0, stop
     beq $t1, $s1, stop
     beq $t1, $s2, stop
@@ -631,7 +632,7 @@ check_bottom:
     beq $t1, $s4, stop
     beq $t1, $s5, stop
     beq $t1, $s6, stop
-    j end_check
+    jr $ra
     stop:
         # Check if there is a match
         jal check_matches
@@ -653,11 +654,10 @@ check_bottom:
         j end_key
 
 down_reset_start_pos:
-    j check_bottom
-    end_check:
-        addi $t6, $t6, 128
-        move $t0, $t6
-        j end_key    
+    addi $t6, $t6, 128
+    move $t0, $t6
+    jal check_bottom
+    j end_key    
 
 shift:
     lw $t2, 0($t0) # Prev color

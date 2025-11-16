@@ -114,6 +114,8 @@ main:
     
     j game_loop
     
+    # Draw column on the side panel
+    
     make_column:
     lw $t0, ADDR_DSPL
     addi $t0, $t0, 164  # Start pixel on the side panel
@@ -168,7 +170,7 @@ main:
     end_draw_col:
     jr $ra
     
-    # End drawing of column
+    # Move column to the middle of the paying field then create a new column on the side panel
     
     move_column:
         addi $sp, $sp, -4
@@ -177,7 +179,7 @@ main:
         lw $t0, ADDR_DSPL
         addi $t0, $t0, 164  # Set to the first cell of the column on the side panel
         lw $t1, 0($t0)      # Store color of the first cell in $t1
-        lw $t2, 128($t0)    # Store color of the second st cell in $t2
+        lw $t2, 128($t0)    # Store color of the second cell in $t2
         lw $t3, 256($t0)    # Store color of the third cell in $t3
         
         lw $t0, ADDR_DSPL
@@ -539,9 +541,9 @@ main:
     respond_to_A:       # Moves the column left by 1 unit
         li $t2, 0x555555
         lw $t3, -4($t0)
-        beq $t2, $t3, end_key
-        lw $t4, 252($t0)
-        bne $zero, $t4, end_key
+        beq $t2, $t3, end_key   # Reached the border
+        lw $t4, 252($t0)    # Left to the last cell of the column
+        bne $zero, $t4, end_key     # Collision detected
         addi $t7, $t0, 384
     	j move_left
     respond_to_S:       # Moves the column down by 1 unit
@@ -554,9 +556,9 @@ main:
     respond_to_D:       # Moves the column right by 1 unit
         li $t2, 0x555555
         lw $t3, 4($t0)
-        beq $t2, $t3, end_key
-        lw $t4, 260($t0)
-        bne $zero, $t4, end_key
+        beq $t2, $t3, end_key   # Reached the border
+        lw $t4, 260($t0)    # Right to the last cell of the column
+        bne $zero, $t4, end_key     # Collision detected
         addi $t7, $t0, 384
     	j move_right
     respond_to_Q:       # Quits the program
@@ -631,19 +633,21 @@ check_bottom:
     beq $t1, $s6, stop
     j end_check
     stop:
-        # addi $t0, $t0, -128
+        # Check if there is a match
         jal check_matches
         
+        # Check game over condition
         jal check_game_over
         
         li $v0, 32
         li $a0, 510     # Sleep for 30 frames
         syscall
         
+        # Move column on the side panel into the playing field then generate a new column
         jal move_column
         
         lw  $t0, ADDR_DSPL
-        addi $t0, $t0, 144
+        addi $t0, $t0, 144  # Set $t0 to be the first cell of the column in the playing field
         move $t6, $t0
         
         j end_key
@@ -744,14 +748,14 @@ check_matches:
     sw $ra, 0($sp)
     
     loop_clear_matches:     # Find matches until no matches found
-        jal clear_matches
+        jal clear_matches   # Delete matches
         beq $v0, $zero, end_check_matches   # No matches found
         
         li $v0, 32
         li $a0, 510     # Sleep for 30 frames
         syscall
         
-        jal drop_gems
+        jal drop_gems   # Drop gems
         j loop_clear_matches
     
     end_check_matches:
@@ -929,7 +933,7 @@ clear_matches:
 
 drop_gems:                
     li $t1, 0
-    li $t2, 14
+    li $t2, 14  # Drop gems 13 times then stop when $t1 reaches 14
     drop_gems_loop:
         beq $t1, $t2, end_drop_gems
         
@@ -947,12 +951,12 @@ drop_gems:
                 lw $t6, 0($t0)      # Current color
                 lw $t7, 128($t0)    # Below color
                 
-                beq $t6, $zero, skip_drop
-                bne $t7, $zero, skip_drop
+                beq $t6, $zero, skip_drop   # No gems to drop
+                bne $t7, $zero, skip_drop   # No gems to drop
                 
                 # Drop gem
-                sw $zero, 0($t0)
-                sw $t6, 128($t0)
+                sw $zero, 0($t0)    # Set current cell black
+                sw $t6, 128($t0)    # Set below cell the color of the previous current cell
                 
                 skip_drop:
                     addi $t5, $t5, -1
@@ -981,7 +985,7 @@ check_game_over:
     check_game_over_loop:
         beq $t1, $t2, check_middle_space
         lw $t3, 0($t0)
-        bne $t3, $zero, game_over   # gem found -> game over
+        bne $t3, $zero, game_over   # gem found on the top of the playing field -> game over
         
         addi $t0, $t0, 4
         addi $t1, $t1, 1

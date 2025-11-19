@@ -26,6 +26,33 @@ ADDR_DSPL:
 ADDR_KBRD:
     .word 0xffff0000
 
+RED:	
+    .word 0xff0000
+    
+GREEN:	
+    .word 0x00ff00
+    
+BLUE:	
+    .word 0x0000ff
+    
+ORANGE:
+    .word 0xff7f00
+
+CYAN:
+    .word 0x00ffff
+
+YELLOW:
+    .word 0xffff00
+    
+BORDER:	
+    .word 0x555555
+    
+FIELD_WIDTH:
+    .word 7
+    
+FIELD_HEIGHT:
+    .word 14
+    
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -41,15 +68,7 @@ ADDR_KBRD:
 main:
     lw $t0, ADDR_DSPL
     
-    li $s0, 0xff0000        # $s0 = red
-    li $s1, 0x00ff00        # $s1 = green
-    li $s2, 0x0000ff        # $s2 = blue
-    li $s3, 0xff7f00        # $s3 = orange
-    li $s4, 0x00ffff        # $s4 = cyan
-    li $s5, 0xffff00        # $s5 = yellow
-    li $s6, 0x555555        # $s6 = gray (for border)
-    
-    li $s7, 1               # $s6 = pause/unpause game (0 -> paused, 1 -> unpaused)
+    li $s7, 1               # $s7 = pause/unpause game (0 -> paused, 1 -> unpaused)
     
     li $t9, 0               # $t9 = 0 (Placeholder for gravity timer)
     
@@ -57,44 +76,54 @@ main:
     
     li $a0, 0
     li $a1, 0
-    li $a2, 9
-    move $a3, $s6
+    lw $a2, FIELD_WIDTH
+    addi $a2, $a2, 2
+    lw $a3, BORDER
     jal line_horiz
     
-    li $a2, 16
+    lw $a2, FIELD_HEIGHT
+    addi $a2, $a2, 2
     jal line_vert
     
-    li $a1, 15
-    li $a2, 9
-    move $a3, $s6
+    lw $a1, FIELD_HEIGHT
+    addi $a1, $a1, 1
+    lw $a2, FIELD_WIDTH
+    addi $a2, $a2, 2
+    lw $a3, BORDER
     jal line_horiz
     
-    li $a0, 8
+    lw $a0, FIELD_WIDTH
+    addi $a0, $a0, 1
     li $a1, 0
-    li $a2, 16
-    move $a3, $s6
+    lw $a2, FIELD_HEIGHT
+    addi $a2, $a2, 2
+    lw $a3, BORDER
     jal line_vert
     
-    li $a0, 9
+    # Draw side panel
+    
+    lw $a0, FIELD_WIDTH
+    addi $a0, $a0, 2
     li $a1, 0
     li $a2, 2
-    move $a3, $s6
+    lw $a3, BORDER
     jal line_horiz
     
-    li $a0, 9
+    lw $a0, FIELD_WIDTH
+    addi $a0, $a0, 2
     li $a1, 4
-    li $a2, 12
-    move $a3, $s6
+    lw $a2, FIELD_HEIGHT
+    addi $a2, $a2, -2
+    lw $a3, BORDER
     jal line_vert
     
-    li $a0, 10
+    lw $a0, FIELD_WIDTH
+    addi $a0, $a0, 3
     li $a1, 1
-    li $a2, 15
-    move $a3, $s6
+    lw $a2, FIELD_HEIGHT
+    addi $a2, $a2, 1
+    lw $a3, BORDER
     jal line_vert
-    
-    
-    # End Draw Gray Border
     
     # Make initial and recurring (3x1) column
     
@@ -149,28 +178,28 @@ main:
         beq $a0, $t6 pick_yellow
         
     pick_red:
-        move $t1, $s0
+        lw $t1, RED
         j draw_pixel
-    pick_green:
-        move $t1, $s1
+    pick_green:        
+        lw $t1, GREEN
         j draw_pixel
     pick_blue:
-        move $t1, $s2
+        lw $t1, BLUE
         j draw_pixel
     pick_orange:
-        move $t1, $s3
+        lw $t1, ORANGE
         j draw_pixel
     pick_cyan:
-        move $t1, $s4
+        lw $t1, CYAN
         j draw_pixel
     pick_yellow:
-        move $t1, $s5
+        lw $t1, YELLOW
         j draw_pixel
     
     end_draw_col:
     jr $ra
     
-    # Move column to the middle of the paying field then create a new column on the side panel
+# Move column to the middle of the paying field then create a new column on the side panel
     
     move_column:
         addi $sp, $sp, -4
@@ -539,25 +568,25 @@ main:
     respond_to_W:       # Shifts the columnn colors by one
     	j shift
     respond_to_A:       # Moves the column left by 1 unit
-        li $t2, 0x555555
+        lw $t2, BORDER
         lw $t3, -4($t0)
         beq $t2, $t3, end_key   # Reached the border
-        lw $t4, 252($t0)    # Left to the last cell of the column
+        lw $t4, 252($t0)        # Left to the last cell of the column
         bne $zero, $t4, end_key     # Collision detected
         addi $t7, $t0, 384
     	j move_left
     respond_to_S:       # Moves the column down by 1 unit
         move $t0, $t6
     
-        li $t2, 0x555555
+        lw $t2, BORDER
         lw $t3, 384($t0)
         beq $t2, $t3, end_key
     	j move_down
     respond_to_D:       # Moves the column right by 1 unit
-        li $t2, 0x555555
+        lw $t2, BORDER
         lw $t3, 4($t0)
         beq $t2, $t3, end_key   # Reached the border
-        lw $t4, 260($t0)    # Right to the last cell of the column
+        lw $t4, 260($t0)        # Right to the last cell of the column
         bne $zero, $t4, end_key     # Collision detected
         addi $t7, $t0, 384
     	j move_right
@@ -625,13 +654,7 @@ move_down:
     
 check_bottom:
     lw $t1, 384($t0)
-    beq $t1, $s0, stop
-    beq $t1, $s1, stop
-    beq $t1, $s2, stop
-    beq $t1, $s3, stop
-    beq $t1, $s4, stop
-    beq $t1, $s5, stop
-    beq $t1, $s6, stop
+    bne $t1, $zero, stop
     jr $ra
     stop:
         # Check if there is a match
@@ -720,11 +743,12 @@ repaint:
     lw $t2, 0($t0)
     sw $t2, 0($t0)
     li $t3, 0  # Start Index Row
-    li $t4, 14 # Stop Index Row
+    lw $t4, FIELD_HEIGHT # Stop Index Row
     next_paint_r:
         beq $t3, $t4, repaint_reset_start_pos
         li $t5, 0 # Start Index Col
-        li $t7, 9 # Stop Index Col
+        lw $t7, FIELD_WIDTH
+        addi $t7, $t7, 2    # Stop Index Col
         next_paint_c:
             beq $t5, $t7, end_col
             lw $t2, 0($t0)
@@ -771,11 +795,12 @@ clear_matches:
     # Check horizontal match (x < 5, y < 15)
     
     li $t1, 0   # y index
-    li $t2, 14   # y upper bound
+    lw $t2, FIELD_HEIGHT    # y upper bound
     horiz_y_loop:
         beq $t1, $t2, end_horiz_y_loop
         li $t3, 0   # x index
-        li $t4, 5   # x upper bound
+        lw $t4, FIELD_WIDTH
+        addi $t4, $t4, -2   # x upper bound
         horiz_x_loop:
             beq $t3, $t4, end_horiz_x_loop
             lw $t5, 0($t0)
@@ -812,11 +837,12 @@ clear_matches:
     # Check vertical match (x < 7, y < 12)
     
     li $t1, 0   # y index
-    li $t2, 12   # y upper bound
+    lw $t2, FIELD_HEIGHT    
+    addi $t2, $t2, -2   # y upper bound
     vert_y_loop:
         beq $t1, $t2, end_vert_y_loop
         li $t3, 0   # x index
-        li $t4, 7   # x upper bound
+        lw $t4, FIELD_WIDTH     # x upper bound
         vert_x_loop:
             beq $t3, $t4, end_vert_x_loop
             lw $t5, 0($t0)
@@ -853,11 +879,13 @@ clear_matches:
     # Check diagonal down match (x < 5, y < 12)
     
     li $t1, 0   # y index
-    li $t2, 12   # y upper bound
+    lw $t2, FIELD_HEIGHT    
+    addi $t2, $t2, -2    # y upper bound
     diag_down_y_loop:
         beq $t1, $t2, end_diag_down_y_loop
         li $t3, 0   # x index
-        li $t4, 5   # x upper bound
+        lw $t4, FIELD_WIDTH
+        addi $t4, $t4, -2   # x upper bound
         diag_down_x_loop:
             beq $t3, $t4, end_diag_down_x_loop
             lw $t5, 0($t0)
@@ -894,11 +922,13 @@ clear_matches:
     # Check diagonal up match (x < 5, y < 12)
     
     li $t1, 0   # y index
-    li $t2, 12   # y upper bound
+    lw $t2, FIELD_HEIGHT    
+    addi $t2, $t2, -2    # y upper bound
     diag_up_y_loop:
         beq $t1, $t2, end_diag_up_y_loop
         li $t3, 0   # x index
-        li $t4, 5   # x upper bound
+        lw $t4, FIELD_WIDTH
+        addi $t4, $t4, -2   # x upper bound
         diag_up_x_loop:
             beq $t3, $t4, end_diag_up_x_loop
             lw $t5, 0($t0)
@@ -933,7 +963,7 @@ clear_matches:
 
 drop_gems:                
     li $t1, 0
-    li $t2, 14  # Drop gems 13 times then stop when $t1 reaches 14
+    lw $t2, FIELD_HEIGHT    # Drop gems 13 times then stop when $t1 reaches 14
     drop_gems_loop:
         beq $t1, $t2, end_drop_gems
         
@@ -941,10 +971,11 @@ drop_gems:
         addi $t0, $t0, 1668     # Start at the first cell of the second last row
         
         li $t3, 0
-        li $t4, 7
+        lw $t4, FIELD_WIDTH
         drop_gems_x_loop:
             beq $t3, $t4, end_drop_gems_x_loop
-            li $t5, 13
+            lw $t5, FIELD_HEIGHT
+            addi $t5, $t5, -1
             drop_gems_y_loop:
                 beq $zero, $t5, end_drop_gems_y_loop
                 
@@ -981,7 +1012,7 @@ check_game_over:
     addi $t0, $t0, 132
     
     li $t1, 0       # x index
-    li $t2, 7        # x upper bound
+    lw $t2, FIELD_WIDTH     # x upper bound
     check_game_over_loop:
         beq $t1, $t2, check_middle_space
         lw $t3, 0($t0)

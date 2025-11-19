@@ -46,6 +46,9 @@ YELLOW:
     
 BORDER:	
     .word 0x555555
+
+OUTLINE:
+    .word 0xffffff
     
 FIELD_WIDTH:
     .word 7
@@ -57,6 +60,16 @@ FIELD_HEIGHT:
 # Mutable Data
 ##############################################################################
 
+# Top cell of the outline
+ADDR_OUTLINE_0:
+    .word 0
+# Middle cell of the outline
+ADDR_OUTLINE_1:
+    .word 0
+# Bottom cell of the outline
+ADDR_OUTLINE_2:
+    .word 0
+    
 ##############################################################################
 # Code
 ##############################################################################
@@ -131,7 +144,10 @@ main:
     jal move_column
     
     lw $t0, ADDR_DSPL
-    addi $t0, $t0, 144
+    addi $t0, $t0, 144   # Position of the first cell of the column
+    addi $sp, $sp, -4
+    sw $t0, 0($sp)      # Save it in sp
+    jal outline
     
     move $t6, $t0 # Initialize $t6 as the start position of the column (top block)
     
@@ -199,7 +215,7 @@ main:
     end_draw_col:
     jr $ra
     
-# Move column to the middle of the paying field then create a new column on the side panel
+    # Move column to the middle of the paying field then create a new column on the side panel
     
     move_column:
         addi $sp, $sp, -4
@@ -654,8 +670,16 @@ move_down:
     
 check_bottom:
     lw $t1, 384($t0)
-    bne $t1, $zero, stop
-    jr $ra
+    
+    beq $t1, $zero, empty   # empty -> keep falling
+    
+    lw  $t2, OUTLINE
+    beq $t1, $t2, empty     # outline -> keep falling
+    
+    j stop
+    
+    empty:
+        jr $ra
     stop:
         # Check if there is a match
         jal check_matches
@@ -1037,22 +1061,135 @@ game_over:
     li $v0, 10
     syscall
 
+outline:
+    # $a0 = current position of the first cell of the column
+    lw $a0, 0($sp)  # Load argument from sp
+    addi $sp, $sp, 4    # Restore sp position
+    
+    add $t6, $a0, $zero
+    add $t0, $t6, $zero
+    
+    addi $sp, $sp, -4
+    sw $t6, 0($sp)      # Store initial position
+        
+    create_outline:
+        addi $t0, $t0, 384      # Move to the cell below the column
+        
+        lw $t1, 0($t0)
+        bne $zero, $t1, end_outline     # One cell below the column is not empty
+        
+        lw $t1, 128($t0)
+        bne $zero, $t1, colour_one  # Two cells below the column is not empty
+        
+        lw $t1, 256($t0)
+        bne $zero, $t1, colour_two  # Three cells below the column is not empty
+        
+        # At least three cells below the column is empty
+        
+        addi $t0, $t0, 384  # Next cell to check
+        
+        # Loop until reaching the bottom
+        
+        loop_outline:
+            lw $t1, 0($t0)
+            bne $zero, $t1, end_loop_outline    # Found a non empty cell
+            addi $t0, $t0, 128  # Move to the next cell
+            j loop_outline
+        
+        end_loop_outline:
+            # Current position is non empty
+            # Color above three cells
+            lw $t2, OUTLINE
+            
+            addi $t0, $t0, -128
+            sw $t0, ADDR_OUTLINE_0  # Store the address of the top cell of the outline
+            sw $t2, 0($t0)  # Color the cell
+            
+            addi $t0, $t0, -128
+            sw $t0, ADDR_OUTLINE_1  # Store the address of the middle cell of the outline
+            sw $t2, 0($t0)  # Color the cell
+            
+            addi $t0, $t0, -128
+            sw $t0, ADDR_OUTLINE_2  # Store the address of the bottom cell of the outline
+            sw $t2, 0($t0)  # Color the cell
+            
+            j end_outline
+        
+        colour_one:
+            lw $t2, OUTLINE     # Load outline colour
+            sw $t0, ADDR_OUTLINE_2  # Store the address of the bottom cell of the outline
+            sw $t2, 0($t0)      # Color the cell
+            
+            j end_outline
+        
+        colour_two:
+            lw $t2, OUTLINE     # Load outline colour
+            sw $t0, ADDR_OUTLINE_1  # Store the address of the middle cell of the outline
+            sw $t2, 0($t0)      # Color the first cell
+            
+            addi $t0, $t0, 128  # Move one cell down
+            sw $t0, ADDR_OUTLINE_2  # Store the address of the bottom cell of the outline
+            sw $t2, 0($t0)    # Color the second cell 
+            
+            j end_outline
+
+end_outline:
+    lw $t6, 0($sp)  # Restore initial position to $t6
+    addi $sp, $sp, 4
+    
+    add $t0, $t6, $zero  # Restore initial position to $t0
+    jr $ra 
+
+# Erase previous outline
+erase_outline:
+    lw $t2, OUTLINE     # Load outline colour
+    
+    lw $t1, ADDR_OUTLINE_0
+    beq $t1, $zero, check_outline_1     # Check next cell
+    lw  $t3, 0($t1)        # Colour of the current pixel
+    bne $t3, $t2, check_outline_1   # Not an outline -> don't erase
+    sw $zero, 0($t1)     # Empty the cell
+
+    check_outline_1:
+        lw $t1, ADDR_OUTLINE_1
+        beq $t1, $zero, check_outline_2     # Check next cell
+        lw  $t3, 0($t1)        # Colour of the current pixel
+        bne $t3, $t2, check_outline_2   # Not an outline -> don't erase
+        sw $zero, 0($t1)     # Empty the cell
+        
+    check_outline_2:
+        lw $t1, ADDR_OUTLINE_2
+        beq $t1, $zero, end_erase_outline      # No outline to erase
+        lw  $t3, 0($t1)        # Colour of the current pixel
+        bne $t3, $t2, end_erase_outline   # Not an outline -> don't erase
+        sw $zero, 0($t1)     # Empty the cell
+    
+end_erase_outline:
+    sw $zero, ADDR_OUTLINE_0
+    sw $zero, ADDR_OUTLINE_1
+    sw $zero, ADDR_OUTLINE_2
+    jr $ra
+
 game_loop:
     lw $t1, ADDR_KBRD               # $t1 = base address for keyboard
     lw $t8, 0($t1)                  # Load first word from keyboard
     beq $t8, 1, keyboard_input      # If first word 1, key is pressed
     end_key:
-    beq $s7, $zero, game_loop
-    # 2a. Check for collisions
-	# 2b. Update locations (capsules)
-	j repaint
+        jal erase_outline   # Erase outline
+        
+        addi $sp, $sp, -4
+        sw $t6, 0($sp)  # Load argument to outline
+        jal outline     # Create outline
+        
+        beq $s7, $zero, game_loop
+    	j repaint
 	end_repaint:
-	li $v0, 32                      # Set to sleep value
-	li $a0, 17                      # Sleeps for 17 millisecond which is about 1/60 of a second
-	syscall
-	addi $t9, $t9, 17               # Increment gravity timer
-	li $t1, 510                    # 510 milliseconds = 0.51 seconds
-	beq $t9, $t1, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
-
-    # 5. Go back to Step 1
-    j game_loop
+    	li $v0, 32                      # Set to sleep value
+    	li $a0, 17                      # Sleeps for 17 millisecond which is about 1/60 of a second
+    	syscall
+    	addi $t9, $t9, 17               # Increment gravity timer
+    	li $t1, 510                    # 510 milliseconds = 0.51 seconds
+    	beq $t9, $t1, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
+    
+        # 5. Go back to Step 1
+        j game_loop

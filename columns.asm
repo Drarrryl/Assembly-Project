@@ -43,6 +43,12 @@ CYAN:
 
 YELLOW:
     .word 0xffff00
+
+GRAY:
+    .word 0x555555
+    
+GRAVITY_TICK:
+    .word 17
     
 BORDER:	
     .word 0x555555
@@ -52,7 +58,6 @@ FIELD_WIDTH:
     
 FIELD_HEIGHT:
     .word 14
-    
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -68,9 +73,15 @@ FIELD_HEIGHT:
 main:
     lw $t0, ADDR_DSPL
     
-    li $s7, 1               # $s7 = pause/unpause game (0 -> paused, 1 -> unpaused)
+    li $s5, 0               # $s5 = 0 (Placeholder for gravity timer)
+    li $s6, 510             # $s6 = 510 milliseconds = 0.51 seconds
     
-    li $t9, 0               # $t9 = 0 (Placeholder for gravity timer)
+    li $s0, 0               # $s0 = score at right digit (_X)
+    li $s1, 0               # $s1 = score at left digit (X_)
+    
+    addi $sp, $sp, -4   # Move the stack to an empty location
+    li $t1, 1
+    sw $t1, 0($sp)      # 0($sp) = pause/unpause game (0 -> paused, 1 -> unpaused)
     
     # Draw Gray Border
     
@@ -180,7 +191,7 @@ main:
     pick_red:
         lw $t1, RED
         j draw_pixel
-    pick_green:        
+    pick_green:
         lw $t1, GREEN
         j draw_pixel
     pick_blue:
@@ -231,21 +242,33 @@ main:
         li $a1, 16
         jal draw_S
         
-        li $a0, 5
+        li $a0, 4
         li $a1, 16
         jal draw_C
         
-        li $a0, 10
+        li $a0, 8
         li $a1, 16
         jal draw_O
         
-        li $a0, 15
+        li $a0, 12
         li $a1, 16
         jal draw_R
         
-        li $a0, 20
+        li $a0, 16
         li $a1, 16
         jal draw_E
+        
+        li $a0, 20
+        li $a1, 16
+        jal draw_colon
+        
+        li $a0, 24
+        li $a1, 16
+        jal draw_0
+        
+        li $a0, 28
+        li $a1, 16
+        jal draw_0
         
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -256,9 +279,9 @@ main:
         # $a1 -> y coord
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $t3, $a0, 1
+        move $t3, $a0
         move $t4, $a1
-        li $a2, 2
+        li $a2, 3
         li $a3, 0xffffff
         jal S0
         jal S2
@@ -274,18 +297,14 @@ main:
         # $a1 -> y coord
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $t3, $a0, 1
+        move $t3, $a0
         move $t4, $a1
-        li $a2, 2
+        li $a2, 3
         li $a3, 0xffffff
         jal S0
         jal S3
         jal S4
         jal S5
-        addi $a0, $t3, -1
-        addi $a1, $t4, 3
-        li $a2, 1
-        jal line_vert
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
         jr $ra
@@ -295,9 +314,10 @@ main:
         # $a1 -> y coord
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $t3, $a0, 1
+        
+        move $t3, $a0
         move $t4, $a1
-        li $a2, 2
+        li $a2, 3
         li $a3, 0xffffff
         jal S0
         jal S1
@@ -305,14 +325,7 @@ main:
         jal S3
         jal S4
         jal S5
-        addi $a0, $t3, -1
-        addi $a1, $t4, 3
-        li $a2, 1
-        jal line_vert
-        addi $a0, $t3, 2
-        addi $a1, $t4, 3
-        li $a2, 1
-        jal line_vert
+        
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
         jr $ra
@@ -322,21 +335,17 @@ main:
         # $a1 -> y coord
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $t3, $a0, 1
+        move $t3, $a0
         move $t4, $a1
-        li $a2, 2
+        li $a2, 3
         li $a3, 0xffffff
         jal S0
         jal S1
+        jal S4
         jal S5
         jal S6
-        addi $a0, $t3, -1
-        addi $a1, $t4, 4
+        addi $a1, $t4, 2
         li $a2, 3
-        jal line_vert       # Segment 4
-        addi $a0, $t3, -1
-        addi $a1, $t4, 3
-        li $a2, 4
         jal line_diag_br      # Segment 6
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -347,9 +356,9 @@ main:
         # $a1 -> y coord
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $t3, $a0, 1
+        move $t3, $a0
         move $t4, $a1
-        li $a2, 2
+        li $a2, 3
         li $a3, 0xffffff
         jal S0
         jal S3
@@ -360,20 +369,201 @@ main:
         addi $sp, $sp, 4    # Move the stack to its original location
         jr $ra
     
-    draw_8:
+    draw_colon:
         # $a0 -> x coord
         # $a1 -> y coord
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $t3, $a0, 1
         move $t4, $a1
-        li $a2, 2
+        li $a2, 1
+        li $a3, 0xffffff
+        
+        addi $a1, $t4, 1
+        li $a2, 1
+        jal line_vert       # Segment 4
+        
+        addi $a1, $t4, 3
+        li $a2, 1
+        jal line_vert       # Segment 4
+        
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_0:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
         li $a3, 0xffffff
         jal S0
         jal S1
         jal S2
         jal S3
         jal S4
+        jal S5
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_1:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S1
+        jal S2
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_2:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S1
+        jal S3
+        jal S4
+        jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_3:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S1
+        jal S2
+        jal S3
+        jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_4:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S1
+        jal S2
+        jal S5
+        jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_5:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S2
+        jal S3
+        jal S5
+        jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_6:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S2
+        jal S3
+        jal S4
+        jal S5
+        jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_7:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S1
+        jal S2
+        jal S5
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_8:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S1
+        jal S2
+        jal S3
+        jal S4
+        jal S5
+        jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_9:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S1
+        jal S2
+        jal S3
         jal S5
         jal S6
         lw $ra, 0($sp)
@@ -392,8 +582,8 @@ main:
     S1: 
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $a0, $t3, 2
-        addi $a1, $t4, 1
+        addi $a0, $a0, 2
+        move $a1, $t4
         jal line_vert       # Segment 1
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -402,7 +592,7 @@ main:
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
         addi $a0, $t3, 2
-        addi $a1, $t4, 4
+        addi $a1, $t4, 2
         jal line_vert       # Segment 2
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -411,7 +601,7 @@ main:
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
         move $a0, $t3
-        addi $a1, $t4, 6
+        addi $a1, $t4, 4
         jal line_horiz      # Segment 3
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -419,8 +609,8 @@ main:
     S4:
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $a0, $t3, -1
-        addi $a1, $t4, 4
+        move $a0, $t3
+        addi $a1, $t4, 2
         jal line_vert       # Segment 4
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -428,8 +618,8 @@ main:
     S5:
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
-        addi $a0, $t3, -1
-        addi $a1, $t4, 1
+        move $a0, $t3
+        move $a1, $t4
         jal line_vert       # Segment 5
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -438,7 +628,7 @@ main:
         addi $sp, $sp, -4   # Move the stack to an empty location
         sw $ra, 0($sp)      # Push the return address register onto the stack
         move $a0, $t3
-        addi $a1, $t4, 3
+        addi $a1, $t4, 2
         jal line_horiz      # Segment 6
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
@@ -552,7 +742,8 @@ main:
         lw $a0, 4($t1)                  # Load second word from keyboard
         beq $a0, 0x70, respond_to_P     # Check if the key p was pressed
         
-        beq $s7, $zero, game_loop       # If game is pause remove access to other inputs
+        lw $t1, 0($sp)
+        beq $t1, $zero, game_loop       # If game is pause remove access to other inputs
         
         beq $a0, 0x77, respond_to_W     # Check if the key w was pressed
         beq $a0, 0x61, respond_to_A     # Check if the key a was pressed
@@ -595,14 +786,16 @@ main:
     	syscall
     respond_to_P:       # Pauses the game
     	li $t1, 1
-    	beq $s7, $t1, pause
-    	beq $s7, $zero, unpause
+    	lw $t2, 0($sp)
+    	beq $t2, $t1, pause
+    	beq $t2, $zero, unpause
     	pause:
-    	   li $s7, 0
+    	   sw $zero, 0($sp)
     	   jal draw_pause
     	   j end_key
     	unpause:
-    	   li $s7, 1
+    	   li $t1, 1
+    	   sw $t1, 0($sp)
     	   jal clear_pause
     	   j end_key
 
@@ -764,8 +957,165 @@ repaint_reset_start_pos:
     j end_repaint
 
 gravity:
-    li $t9, 0
+    li $s5, 0
     j respond_to_S
+
+update_score:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    # Digit 0 (_X)
+    li $a0, 28
+    li $a1, 16
+    li $a2, 3
+    li $a3, 5
+    jal clear_rect
+    
+    li $a0, 28
+    li $a1, 16
+    li $a2, 1
+    li $a3, 0xffffff
+    beq $s0, $zero, digit0_0
+    li $t1, 1
+    beq $s0, $t1, digit0_1
+    li $t1, 2
+    beq $s0, $t1, digit0_2
+    li $t1, 3
+    beq $s0, $t1, digit0_3
+    li $t1, 4
+    beq $s0, $t1, digit0_4
+    li $t1, 5
+    beq $s0, $t1, digit0_5
+    li $t1, 6
+    beq $s0, $t1, digit0_6
+    li $t1, 7
+    beq $s0, $t1, digit0_7
+    li $t1, 8
+    beq $s0, $t1, digit0_8
+    li $t1, 9
+    beq $s0, $t1, digit0_9
+    
+    digit0_0:
+        jal draw_0
+        j update_digit1
+    
+    digit0_1:
+        jal draw_1
+        j end_update_score
+    
+    digit0_2:
+        jal draw_2
+        j end_update_score
+    
+    digit0_3:
+        jal draw_3
+        j end_update_score
+    
+    digit0_4:
+        jal draw_4
+        j end_update_score
+    
+    digit0_5:
+        jal draw_5
+        j end_update_score
+    
+    digit0_6:
+        jal draw_6
+        j end_update_score
+    
+    digit0_7:
+        jal draw_7
+        j end_update_score
+    
+    digit0_8:
+        jal draw_8
+        j end_update_score
+    
+    digit0_9:
+        jal draw_9
+        j end_update_score
+    
+    update_digit1:
+    # Digit 1 (X_)
+    li $a0, 24
+    li $a1, 16
+    li $a2, 3
+    li $a3, 5
+    jal clear_rect
+    
+    li $a0, 24
+    li $a1, 16
+    li $a2, 1
+    li $a3, 0xffffff
+    beq $s1, $zero, digit1_0
+    li $t1, 1
+    beq $s1, $t1, digit1_1
+    li $t1, 2
+    beq $s1, $t1, digit1_2
+    li $t1, 3
+    beq $s1, $t1, digit1_3
+    li $t1, 4
+    beq $s1, $t1, digit1_4
+    li $t1, 5
+    beq $s1, $t1, digit1_5
+    li $t1, 6
+    beq $s1, $t1, digit1_6
+    li $t1, 7
+    beq $s1, $t1, digit1_7
+    li $t1, 8
+    beq $s1, $t1, digit1_8
+    li $t1, 9
+    beq $s1, $t1, digit1_9
+    
+    digit1_0:
+        jal draw_0
+        j end_update_score
+    
+    digit1_1:
+        jal draw_1
+        j end_update_score
+    
+    digit1_2:
+        jal draw_2
+        j end_update_score
+    
+    digit1_3:
+        jal draw_3
+        j end_update_score
+    
+    digit1_4:
+        jal draw_4
+        j end_update_score
+    
+    digit1_5:
+        jal draw_5
+        j end_update_score
+    
+    digit1_6:
+        jal draw_6
+        j end_update_score
+    
+    digit1_7:
+        jal draw_7
+        j end_update_score
+    
+    digit1_8:
+        jal draw_8
+        j end_update_score
+    
+    digit1_9:
+        jal draw_9
+        j end_update_score
+     
+    end_update_score:
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+score_overflow:
+    addi $s1, $s1, 1
+    li $s0, 0
+    j end_overflow
 
 check_matches:
     addi $sp, $sp, -4
@@ -780,6 +1130,16 @@ check_matches:
         syscall
         
         jal drop_gems   # Drop gems
+        lw $t1, GRAVITY_TICK
+        li $s5, 0
+        beq $s6, $t1, loop_clear_matches
+        addi $s0, $s0, 1    # Increment score by 1
+        li $t1, 10
+        beq $s0, $t1, score_overflow
+        end_overflow:
+        jal update_score
+        lw $t1, GRAVITY_TICK
+        sub $s6, $s6, $t1
         j loop_clear_matches
     
     end_check_matches:
@@ -1042,7 +1402,8 @@ game_loop:
     lw $t8, 0($t1)                  # Load first word from keyboard
     beq $t8, 1, keyboard_input      # If first word 1, key is pressed
     end_key:
-    beq $s7, $zero, game_loop
+    lw $t1, 0($sp)
+    beq $t1, $zero, game_loop
     # 2a. Check for collisions
 	# 2b. Update locations (capsules)
 	j repaint
@@ -1050,9 +1411,9 @@ game_loop:
 	li $v0, 32                      # Set to sleep value
 	li $a0, 17                      # Sleeps for 17 millisecond which is about 1/60 of a second
 	syscall
-	addi $t9, $t9, 17               # Increment gravity timer
-	li $t1, 510                    # 510 milliseconds = 0.51 seconds
-	beq $t9, $t1, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
+	lw $t1, GRAVITY_TICK
+	add $s5, $s5, $t1               # Increment gravity timer
+	beq $s5, $s6, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
 
     # 5. Go back to Step 1
     j game_loop

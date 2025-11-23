@@ -1241,21 +1241,48 @@ clear_matches:
             bne $t6, $t7, horiz_skip_cell
             
             # Horizontal match
-            sw $zero, 0($t0)
-            sw $zero, 4($t0)
-            sw $zero, 8($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            horiz_flicker:
+                beq $t6, $t7, end_horiz_flicker
+                sw $zero, 0($t0)
+                sw $zero, 4($t0)
+                sw $zero, 8($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, 4($t0)
+                sw $t5, 8($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j horiz_flicker
+                
+            end_horiz_flicker:
+                sw $zero, 0($t0)
+                sw $zero, 4($t0)
+                sw $zero, 8($t0)
+                
+                li $v0, 1   # A match was found
             
             horiz_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j horiz_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j horiz_x_loop
+                
         end_horiz_x_loop:
-        addi $t0, $t0, -20
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j horiz_y_loop
+            addi $t0, $t0, -20
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j horiz_y_loop
+            
     end_horiz_y_loop:
     
     lw $t0, ADDR_DSPL
@@ -1283,21 +1310,48 @@ clear_matches:
             bne $t6, $t7, vert_skip_cell
             
             # Vertical match
-            sw $zero, 0($t0)
-            sw $zero, 128($t0)
-            sw $zero, 256($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            vert_flicker:
+                beq $t6, $t7, end_vert_flicker
+                sw $zero, 0($t0)
+                sw $zero, 128($t0)
+                sw $zero, 256($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, 128($t0)
+                sw $t5, 256($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j vert_flicker
+                
+            end_vert_flicker:
+                sw $zero, 0($t0)
+                sw $zero, 128($t0)
+                sw $zero, 256($t0)
+                
+                li $v0, 1   # A match was found
             
             vert_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j vert_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j vert_x_loop
+                
         end_vert_x_loop:
-        addi $t0, $t0, -28
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j vert_y_loop
+            addi $t0, $t0, -28
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j vert_y_loop
+            
     end_vert_y_loop:
     
     lw $t0, ADDR_DSPL
@@ -1326,21 +1380,48 @@ clear_matches:
             bne $t6, $t7, diag_down_skip_cell
             
             # Diagonal down match
-            sw $zero, 0($t0)
-            sw $zero, 132($t0)
-            sw $zero, 264($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            diag_down_flicker:
+                beq $t6, $t7, end_diag_down_flicker
+                sw $zero, 0($t0)
+                sw $zero, 132($t0)
+                sw $zero, 264($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, 132($t0)
+                sw $t5, 264($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j diag_down_flicker
+                
+            end_diag_down_flicker:
+                sw $zero, 0($t0)
+                sw $zero, 132($t0)
+                sw $zero, 264($t0)
+                
+                li $v0, 1   # A match was found
             
             diag_down_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j diag_down_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j diag_down_x_loop
+                
         end_diag_down_x_loop:
-        addi $t0, $t0, -20
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j diag_down_y_loop
+            addi $t0, $t0, -20
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j diag_down_y_loop
+            
     end_diag_down_y_loop:
     
     lw $t0, ADDR_DSPL
@@ -1369,21 +1450,48 @@ clear_matches:
             bne $t6, $t7, diag_up_skip_cell
             
             # Diagonal up match
-            sw $zero, 0($t0)
-            sw $zero, -124($t0)
-            sw $zero, -248($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            diag_up_flicker:
+                beq $t6, $t7, end_diag_up_flicker
+                sw $zero, 0($t0)
+                sw $zero, -124($t0)
+                sw $zero, -248($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, -124($t0)
+                sw $t5, -248($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j diag_up_flicker
+                
+            end_diag_up_flicker:
+                sw $zero, 0($t0)
+                sw $zero, -124($t0)
+                sw $zero, -248($t0)
+                
+                li $v0, 1   # A match was found
             
             diag_up_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j diag_up_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j diag_up_x_loop
+                
         end_diag_up_x_loop:
-        addi $t0, $t0, -20
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j diag_up_y_loop
+            addi $t0, $t0, -20
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j diag_up_y_loop
+            
     end_diag_up_y_loop:
     
     jr $ra

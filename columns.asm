@@ -174,7 +174,11 @@ main:
     
     make_column:
     lw $t0, ADDR_DSPL
-    addi $t0, $t0, 164  # Start pixel on the side panel
+    lw $t1, FIELD_WIDTH
+    addi $t1, $t1, 2    # Side panel offset in pixel
+    sll $t1, $t1, 2     # Multiply by 4
+    addi $t0, $t0, 128
+    add $t0, $t0, $t1   # Move to side panel position
     addi $t7, $t0, 384  
     draw_columns:
         beq $t0, $t7, end_draw_col
@@ -873,25 +877,30 @@ check_bottom:
     
     empty:
         jr $ra
-    stop:
+        
+    stop:        
         # Check if there is a match
         jal check_matches
         
-        # Check game over condition
-        jal check_game_over
+        bne $v0, $zero, skip_stop_sfx   # A match was found -> don't play stop_sfx
+        jal stop_sfx
         
-        li $v0, 32
-        li $a0, 510     # Sleep for 30 frames
-        syscall
-        
-        # Move column on the side panel into the playing field then generate a new column
-        jal move_column
-        
-        lw  $t0, ADDR_DSPL
-        addi $t0, $t0, 144  # Set $t0 to be the first cell of the column in the playing field
-        move $t6, $t0
-        
-        j end_key
+        skip_stop_sfx:
+            # Check game over condition
+            jal check_game_over
+            
+            li $v0, 32
+            li $a0, 510     # Sleep for 30 frames
+            syscall
+            
+            # Move column on the side panel into the playing field then generate a new column
+            jal move_column
+            
+            lw  $t0, ADDR_DSPL
+            addi $t0, $t0, 144  # Set $t0 to be the first cell of the column in the playing field
+            move $t6, $t0
+            
+            j end_key
 
 down_reset_start_pos:
     addi $t6, $t6, 128
@@ -915,9 +924,12 @@ shift:
         addi $t0, $t0, 128
         addi $t4, $t4, 1
         j next
+    
     j end_key
 
 shift_reset_start_pos:
+    jal shift_sfx
+
     move $t0, $t6
     j end_key
 
@@ -1145,15 +1157,38 @@ check_matches:
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     
+    li $t2, 0           # Count loops
+    
     loop_clear_matches:     # Find matches until no matches found
+    
+        # Store $t2 in $sp when calling a function
+        
+        addi $sp, $sp, -4
+        sw $t2, 0($sp)      # Store $t2
         jal clear_matches   # Delete matches
+        lw $t2, 0($sp)      # Load $t2
+        addi $sp, $sp, 4
+        
         beq $v0, $zero, end_check_matches   # No matches found
+        
+        addi $t2, $t2, 1    # Increment count
+        
+        addi $sp, $sp, -4
+        sw $t2, 0($sp)      # Store $t2
+        jal match_sfx
+        lw $t2, 0($sp)      # Load $t2
+        addi $sp, $sp, 4
         
         li $v0, 32
         li $a0, 510     # Sleep for 30 frames
         syscall
         
+        addi $sp, $sp, -4
+        sw $t2, 0($sp)      # Store $t2
         jal drop_gems   # Drop gems
+        lw $t2, 0($sp)      # Load $t2
+        addi $sp, $sp, 4
+        
         lw $t1, GRAVITY_TICK
         li $s5, 0
         beq $s6, $t1, loop_clear_matches
@@ -1161,14 +1196,22 @@ check_matches:
         li $t1, 10
         beq $s0, $t1, score_overflow
         end_overflow:
-        jal update_score
-        lw $t1, GRAVITY_TICK
-        sub $s6, $s6, $t1
-        j loop_clear_matches
+            addi $sp, $sp, -4
+            sw $t2, 0($sp)      # Store $t2
+            jal update_score
+            lw $t2, 0($sp)      # Load $t2
+            addi $sp, $sp, 4
+            
+            lw $t1, GRAVITY_TICK
+            sub $s6, $s6, $t1
+            j loop_clear_matches
     
     end_check_matches:
-        lw $ra, 0($sp)
+        move $v0, $t2
+        
+        lw $ra, 0($sp)      # Load return address
         addi $sp, $sp, 4
+        
         jr $ra
 
 clear_matches:
@@ -1418,6 +1461,8 @@ end_check_game_over:
     jr $ra
 
 game_over:
+    jal game_over_sfx
+    
     li $v0, 10
     syscall
 
@@ -1530,10 +1575,157 @@ end_erase_outline:
     sw $zero, ADDR_OUTLINE_2
     jr $ra
 
+stop_sfx:
+    addi $sp, $sp, -4
+    sw   $ra, 0($sp)
+
+    li   $a0, 76
+    li   $a1, 40
+    li   $a2, 80
+    li   $a3, 120
+    li   $v0, 31
+    syscall
+
+    li   $a0, 68
+    li   $a1, 50
+    li   $a2, 80
+    li   $a3, 110
+    li   $v0, 31
+    syscall
+
+    lw   $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr   $ra
+
+shift_sfx:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    li $a0, 60
+    li $a1, 30
+    li $a2, 115
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    li $a0, 64
+    li $a1, 30
+    li $a2, 115
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    li $a0, 67
+    li $a1, 45
+    li $a2, 115
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+match_sfx:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    li $a0, 76
+    li $a1, 70
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
+    syscall
+    
+    li $a0, 83
+    li $a1, 70
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
+    syscall
+    
+    li $a0, 88
+    li $a1, 90
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
+    syscall
+    
+    li $a0, 95
+    li $a1, 130
+    li $a2, 80
+    li $a3, 125
+    li $v0, 31
+    syscall
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+game_over_sfx:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    li $a0, 79
+    li $a1, 260
+    li $a2, 81
+    li $a3, 115
+    li $v0, 31
+    syscall
+    
+    li $a0, 160
+    li $v0, 32
+    syscall
+    
+    li $a0, 76
+    li $a1, 280
+    li $a2, 81
+    li $a3, 110
+    li $v0, 31
+    syscall
+    
+    li $a0, 180
+    li $v0, 32
+    syscall
+    
+    li $a0, 72
+    li $a1, 320
+    li $a2, 81
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    li $a0, 220
+    li $v0, 32
+    syscall
+    
+    li $a0, 67
+    li $a1, 380
+    li $a2, 81
+    li $a3, 100
+    li $v0, 31
+    syscall
+    
+    li $a0, 260
+    li $v0, 32
+    syscall
+    
+    li $a0, 60
+    li $a1, 700
+    li $a2, 81
+    li $a3, 95
+    li $v0, 31
+    syscall
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
 game_loop:
     lw $t1, ADDR_KBRD               # $t1 = base address for keyboard
     lw $t8, 0($t1)                  # Load first word from keyboard
     beq $t8, 1, keyboard_input      # If first word 1, key is pressed
+    
     end_key:
         lw $t1, 0($sp)
         beq $t1, $zero, game_loop
@@ -1545,13 +1737,15 @@ game_loop:
         jal outline     # Create outline
     
     	j repaint  
-	end_repaint:
-    	li $v0, 32                      # Set to sleep value
-    	li $a0, 17                      # Sleeps for 17 millisecond which is about 1/60 of a second
-    	syscall
-    	lw $t1, GRAVITY_TICK
-    	add $s5, $s5, $t1               # Increment gravity timer
-    	beq $s5, $s6, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
+    	
+    	end_repaint:
+        	li $v0, 32                      # Set to sleep value
+        	li $a0, 17                      # Sleeps for 17 millisecond which is about 1/60 of a second
+        	syscall    
+        	    
+        	lw $t1, GRAVITY_TICK
+        	add $s5, $s5, $t1               # Increment gravity timer
+        	beq $s5, $s6, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
     
-        # 5. Go back to Step 1
-        j game_loop
+            # 5. Go back to Step 1
+            j game_loop

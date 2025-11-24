@@ -36,7 +36,7 @@ BLUE:
     .word 0x0000ff
     
 ORANGE:
-    .word 0xff7f00
+    .word 0xff7d00
 
 CYAN:
     .word 0x00ffff
@@ -385,6 +385,84 @@ main:
         jal S4
         jal S5
         jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    
+    draw_G:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S2
+        jal S3
+        jal S4
+        jal S5
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+        
+    draw_A:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S0
+        jal S1
+        jal S2
+        jal S4
+        jal S5
+        jal S6
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+        
+    draw_M:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S1
+        jal S2
+        jal S4
+        jal S5
+        addi $a0, $t3, 1
+        addi $a1, $t4, 1
+        li $a2, 1
+        jal line_horiz
+        lw $ra, 0($sp)
+        addi $sp, $sp, 4    # Move the stack to its original location
+        jr $ra
+    draw_V:
+        # $a0 -> x coord
+        # $a1 -> y coord
+        addi $sp, $sp, -4   # Move the stack to an empty location
+        sw $ra, 0($sp)      # Push the return address register onto the stack
+        move $t3, $a0
+        move $t4, $a1
+        li $a2, 3
+        li $a3, 0xffffff
+        jal S1
+        jal S5
+        addi $a1, $t4, 3
+        li $a2, 2
+        jal line_diag_br
+        addi $a0, $a0, 2
+        li $a2, 1
+        jal line_horiz
         lw $ra, 0($sp)
         addi $sp, $sp, 4    # Move the stack to its original location
         jr $ra
@@ -770,6 +848,7 @@ main:
         beq $a0, 0x73, respond_to_S     # Check if the key s was pressed
         beq $a0, 0x64, respond_to_D     # Check if the key d was pressed
         beq $a0, 0x71, respond_to_Q     # Check if the key q was pressed
+        beq $a0, 0x72, restart          # Check if the key r was pressed
     
         li $v0, 1                       # ask system to print $a0
         syscall
@@ -825,6 +904,7 @@ main:
     	   sw $t1, 0($sp)
     	   jal clear_pause
     	   j end_key
+    respond_to_R:
 
 move_left:
     beq $t0, $t7, left_reset_start_pos
@@ -1564,40 +1644,6 @@ drop_gems:
 end_drop_gems:
     jr $ra
 
-check_game_over:
-    lw $t0, ADDR_DSPL
-    addi $t0, $t0, 132
-    
-    li $t1, 0       # x index
-    lw $t2, FIELD_WIDTH     # x upper bound
-    check_game_over_loop:
-        beq $t1, $t2, check_middle_space
-        lw $t3, 0($t0)
-        bne $t3, $zero, game_over   # gem found on the top of the playing field -> game over
-        
-        addi $t0, $t0, 4
-        addi $t1, $t1, 1
-        j check_game_over_loop
-    
-    check_middle_space:
-        lw $t0, ADDR_DSPL
-        addi $t0, $t0, 144  # Set to middle of the first row
-        lw $t3, 128($t0)
-        bne $t3, $zero, game_over   # Column generating space is occupied -> game over
-        lw $t3, 256($t0)
-        bne $t3, $zero, game_over   # Column generating space is occupied -> game over
-    
-end_check_game_over:
-    jr $ra
-
-game_over:
-    jal game_over_sfx
-    
-    jal paint_gems
-    
-    li $v0, 10
-    syscall
-
 paint_gems:
     lw $t0, ADDR_DSPL
     addi $t0, $t0, 132          # First cell of the first row
@@ -1989,6 +2035,142 @@ game_over_sfx:
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
+
+check_game_over:
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 132
+    
+    li $t1, 0       # x index
+    lw $t2, FIELD_WIDTH     # x upper bound
+    check_game_over_loop:
+        beq $t1, $t2, check_middle_space
+        lw $t3, 0($t0)
+        bne $t3, $zero, game_over   # gem found on the top of the playing field -> game over
+        
+        addi $t0, $t0, 4
+        addi $t1, $t1, 1
+        j check_game_over_loop
+    
+    check_middle_space:
+        lw $t0, ADDR_DSPL
+        addi $t0, $t0, 144  # Set to middle of the first row
+        lw $t3, 128($t0)
+        bne $t3, $zero, game_over   # Column generating space is occupied -> game over
+        lw $t3, 256($t0)
+        bne $t3, $zero, game_over   # Column generating space is occupied -> game over
+    
+end_check_game_over:
+    jr $ra
+
+game_over:    
+    jal game_over_sfx
+    
+    jal paint_gems
+    
+    li $t0, 0
+    li $t1, 2
+    game_over_txt_loop:    
+        beq $t0, $t1, end_game_over_txt_loop
+        
+        addi $sp, $sp, -4
+        sw $t0, 0($sp)       # Store $t0
+        addi $sp, $sp, -4    # Store $t1
+        sw $t1, 0($sp)
+        
+        jal game_over_txt
+        
+        li $v0, 32
+        li $a0, 510     # Sleep for 30 frames
+        syscall
+        
+        li $a0, 0
+        li $a1, 22
+        li $a2, 32
+        li $a3, 5
+        jal clear_rect
+        
+        li $v0, 32
+        li $a0, 510     # Sleep for 30 frames
+        syscall
+        
+        lw $t1, 0($sp)      # Load $t1
+        addi $sp, $sp, 4
+        lw $t0, 0($sp)      # Load $t0
+        addi $sp, $sp, 4
+        addi $t0, $t0, 1
+        
+        j game_over_txt_loop
+    
+    end_game_over_txt_loop:
+    
+    jal game_over_txt
+    
+    j wait_restart
+
+game_over_txt:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    li $a0, 0
+    li $a1, 22
+    jal draw_G
+    
+    li $a0, 4
+    li $a1, 22
+    jal draw_A
+    
+    li $a0, 8
+    li $a1, 22
+    jal draw_M
+    
+    li $a0, 12
+    li $a1, 22
+    jal draw_E
+    
+    li $a0, 16
+    li $a1, 22
+    jal draw_O
+    
+    li $a0, 20
+    li $a1, 22
+    jal draw_V
+    
+    li $a0, 24
+    li $a1, 22
+    jal draw_E
+    
+    li $a0, 28
+    li $a1, 22
+    jal draw_R
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+wait_restart:
+    lw $t1, ADDR_KBRD
+    
+    wait_restart_loop:
+        lw $t8, 0($t1)
+        beq $t8, 1, check_restart
+        j wait_restart_loop
+        
+check_restart:
+    lw $a0, 4($t1)
+    beq $a0, 0x72, restart
+    j wait_restart_loop
+    
+restart:
+    lw $t0, FIELD_WIDTH
+    lw $t1, FIELD_HEIGHT
+
+    li $a0, 1
+    li $a1, 1
+    move $a2, $t0
+    move $a3, $t1
+    jal clear_rect
+    
+    j main
 
 game_loop:
     lw $t1, ADDR_KBRD               # $t1 = base address for keyboard

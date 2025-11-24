@@ -2170,6 +2170,12 @@ restart:
     move $a3, $t1
     jal clear_rect
     
+    li $a0, 0
+    li $a1, 22
+    li $a2, 32
+    li $a3, 5
+    jal clear_rect
+    
     j main
 
 game_loop:

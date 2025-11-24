@@ -54,7 +54,7 @@ BORDER:
     .word 0x555555
 
 OUTLINE:
-    .word 0xffffff
+    .word 0x555555
     
 FIELD_WIDTH:
     .word 7
@@ -174,7 +174,11 @@ main:
     
     make_column:
     lw $t0, ADDR_DSPL
-    addi $t0, $t0, 164  # Start pixel on the side panel
+    lw $t1, FIELD_WIDTH
+    addi $t1, $t1, 2    # Side panel offset in pixel
+    sll $t1, $t1, 2     # Multiply by 4
+    addi $t0, $t0, 128
+    add $t0, $t0, $t1   # Move to side panel position
     addi $t7, $t0, 384  
     draw_columns:
         beq $t0, $t7, end_draw_col
@@ -784,10 +788,17 @@ main:
     	j move_left
     respond_to_S:       # Moves the column down by 1 unit
         move $t0, $t6
-    
-        lw $t2, BORDER
-        lw $t3, 384($t0)
-        beq $t2, $t3, end_key
+        addi $t1, $t0, 384
+        
+        lw $t2, ADDR_DSPL
+        lw $t3, FIELD_HEIGHT
+        addi $t3, $t3, 1
+        sll $t3, $t3, 7         # (field height + 1) * 128
+        add $t2, $t2, $t3       # First cell of the bottom border
+        sub $t1, $t1, $t2       # Current address - first cell of the bottom border
+        
+        bgtz $t1, end_key       # $t1 is greater than 0 -> Column hit the border
+        
     	j move_down
     respond_to_D:       # Moves the column right by 1 unit
         lw $t2, BORDER
@@ -862,36 +873,58 @@ move_down:
         j next_down
     
 check_bottom:
-    lw $t1, 384($t0)
+    lw $t1, 384($t0)        # Colour
+    addi $t2, $t0, 384      # Address
     
     beq $t1, $zero, empty   # empty -> keep falling
     
-    lw  $t2, OUTLINE
-    beq $t1, $t2, empty     # outline -> keep falling
+    # lw $t3, ADDR_DSPL
+    # lw $t4, FIELD_HEIGHT
+    # addi $t4, $t4, 1
+    # sll $t4, $t4, 7         # (field height + 1) * 128
+    # add $t3, $t3, $t4       # First cell of the bottom border
+    # sub $t2, $t2, $t3       # Current address - first cell of the border
+    
+    # bgtz $t2, stop          # Column hit the border
+
+    # If the address equals to the address of the outline then it's empty
+    lw $t3, ADDR_OUTLINE_2
+    beq $t2, $t3, empty
+    
+    lw $t3, ADDR_OUTLINE_1
+    beq $t2, $t3, empty
+    
+    lw $t3, ADDR_OUTLINE_0
+    beq $t2, $t3, empty
     
     j stop
     
     empty:
         jr $ra
-    stop:
+        
+    stop:        
         # Check if there is a match
         jal check_matches
         
-        # Check game over condition
-        jal check_game_over
+        bne $v0, $zero, skip_stop_sfx   # A match was found -> don't play stop_sfx
+        jal stop_sfx
         
-        li $v0, 32
-        li $a0, 510     # Sleep for 30 frames
-        syscall
-        
-        # Move column on the side panel into the playing field then generate a new column
-        jal move_column
-        
-        lw  $t0, ADDR_DSPL
-        addi $t0, $t0, 144  # Set $t0 to be the first cell of the column in the playing field
-        move $t6, $t0
-        
-        j end_key
+        skip_stop_sfx:
+            # Check game over condition
+            jal check_game_over
+            
+            li $v0, 32
+            li $a0, 510     # Sleep for 30 frames
+            syscall
+            
+            # Move column on the side panel into the playing field then generate a new column
+            jal move_column
+            
+            lw  $t0, ADDR_DSPL
+            addi $t0, $t0, 144  # Set $t0 to be the first cell of the column in the playing field
+            move $t6, $t0
+            
+            j end_key
 
 down_reset_start_pos:
     addi $t6, $t6, 128
@@ -915,9 +948,12 @@ shift:
         addi $t0, $t0, 128
         addi $t4, $t4, 1
         j next
+    
     j end_key
 
 shift_reset_start_pos:
+    jal shift_sfx
+
     move $t0, $t6
     j end_key
 
@@ -1145,15 +1181,36 @@ check_matches:
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     
+    li $t2, 0           # Count loops
+    
     loop_clear_matches:     # Find matches until no matches found
+        # Store $t2 in $sp when calling a function
+        addi $sp, $sp, -4
+        sw $t2, 0($sp)      # Store $t2
         jal clear_matches   # Delete matches
+        lw $t2, 0($sp)      # Load $t2
+        addi $sp, $sp, 4
+        
         beq $v0, $zero, end_check_matches   # No matches found
+        
+        addi $t2, $t2, 1    # Increment count
+        
+        addi $sp, $sp, -4
+        sw $t2, 0($sp)      # Store $t2
+        jal match_sfx
+        lw $t2, 0($sp)      # Load $t2
+        addi $sp, $sp, 4
         
         li $v0, 32
         li $a0, 510     # Sleep for 30 frames
         syscall
         
+        addi $sp, $sp, -4
+        sw $t2, 0($sp)      # Store $t2
         jal drop_gems   # Drop gems
+        lw $t2, 0($sp)      # Load $t2
+        addi $sp, $sp, 4
+        
         lw $t1, GRAVITY_TICK
         li $s5, 0
         beq $s6, $t1, loop_clear_matches
@@ -1161,14 +1218,22 @@ check_matches:
         li $t1, 10
         beq $s0, $t1, score_overflow
         end_overflow:
-        jal update_score
-        lw $t1, GRAVITY_TICK
-        sub $s6, $s6, $t1
-        j loop_clear_matches
+            addi $sp, $sp, -4
+            sw $t2, 0($sp)      # Store $t2
+            jal update_score
+            lw $t2, 0($sp)      # Load $t2
+            addi $sp, $sp, 4
+            
+            lw $t1, GRAVITY_TICK
+            sub $s6, $s6, $t1
+            j loop_clear_matches
     
     end_check_matches:
-        lw $ra, 0($sp)
+        move $v0, $t2
+        
+        lw $ra, 0($sp)      # Load return address
         addi $sp, $sp, 4
+        
         jr $ra
 
 clear_matches:
@@ -1198,21 +1263,48 @@ clear_matches:
             bne $t6, $t7, horiz_skip_cell
             
             # Horizontal match
-            sw $zero, 0($t0)
-            sw $zero, 4($t0)
-            sw $zero, 8($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            horiz_flicker:
+                beq $t6, $t7, end_horiz_flicker
+                sw $zero, 0($t0)
+                sw $zero, 4($t0)
+                sw $zero, 8($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, 4($t0)
+                sw $t5, 8($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j horiz_flicker
+                
+            end_horiz_flicker:
+                sw $zero, 0($t0)
+                sw $zero, 4($t0)
+                sw $zero, 8($t0)
+                
+                li $v0, 1   # A match was found
             
             horiz_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j horiz_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j horiz_x_loop
+                
         end_horiz_x_loop:
-        addi $t0, $t0, -20
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j horiz_y_loop
+            addi $t0, $t0, -20
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j horiz_y_loop
+            
     end_horiz_y_loop:
     
     lw $t0, ADDR_DSPL
@@ -1240,21 +1332,48 @@ clear_matches:
             bne $t6, $t7, vert_skip_cell
             
             # Vertical match
-            sw $zero, 0($t0)
-            sw $zero, 128($t0)
-            sw $zero, 256($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            vert_flicker:
+                beq $t6, $t7, end_vert_flicker
+                sw $zero, 0($t0)
+                sw $zero, 128($t0)
+                sw $zero, 256($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, 128($t0)
+                sw $t5, 256($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j vert_flicker
+                
+            end_vert_flicker:
+                sw $zero, 0($t0)
+                sw $zero, 128($t0)
+                sw $zero, 256($t0)
+                
+                li $v0, 1   # A match was found
             
             vert_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j vert_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j vert_x_loop
+                
         end_vert_x_loop:
-        addi $t0, $t0, -28
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j vert_y_loop
+            addi $t0, $t0, -28
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j vert_y_loop
+            
     end_vert_y_loop:
     
     lw $t0, ADDR_DSPL
@@ -1283,21 +1402,48 @@ clear_matches:
             bne $t6, $t7, diag_down_skip_cell
             
             # Diagonal down match
-            sw $zero, 0($t0)
-            sw $zero, 132($t0)
-            sw $zero, 264($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            diag_down_flicker:
+                beq $t6, $t7, end_diag_down_flicker
+                sw $zero, 0($t0)
+                sw $zero, 132($t0)
+                sw $zero, 264($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, 132($t0)
+                sw $t5, 264($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j diag_down_flicker
+                
+            end_diag_down_flicker:
+                sw $zero, 0($t0)
+                sw $zero, 132($t0)
+                sw $zero, 264($t0)
+                
+                li $v0, 1   # A match was found
             
             diag_down_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j diag_down_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j diag_down_x_loop
+                
         end_diag_down_x_loop:
-        addi $t0, $t0, -20
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j diag_down_y_loop
+            addi $t0, $t0, -20
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j diag_down_y_loop
+            
     end_diag_down_y_loop:
     
     lw $t0, ADDR_DSPL
@@ -1326,21 +1472,48 @@ clear_matches:
             bne $t6, $t7, diag_up_skip_cell
             
             # Diagonal up match
-            sw $zero, 0($t0)
-            sw $zero, -124($t0)
-            sw $zero, -248($t0)
-            
-            li $v0, 1   # A match was found
+            li $t6, 0   # Index
+            li $t7, 4   # Upper bound
+            diag_up_flicker:
+                beq $t6, $t7, end_diag_up_flicker
+                sw $zero, 0($t0)
+                sw $zero, -124($t0)
+                sw $zero, -248($t0)    # Paint black
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                sw $t5, 0($t0)
+                sw $t5, -124($t0)
+                sw $t5, -248($t0)      # Paint previous colour
+                
+                li $v0, 32
+                li $a0, 68          # Sleep for 4 frames
+                syscall
+                
+                addi $t6, $t6, 1
+                
+                j diag_up_flicker
+                
+            end_diag_up_flicker:
+                sw $zero, 0($t0)
+                sw $zero, -124($t0)
+                sw $zero, -248($t0)
+                
+                li $v0, 1   # A match was found
             
             diag_up_skip_cell:
-            addi $t0, $t0, 4
-            addi $t3, $t3, 1
-            j diag_up_x_loop
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j diag_up_x_loop
+                
         end_diag_up_x_loop:
-        addi $t0, $t0, -20
-        addi $t0, $t0, 128
-        addi $t1, $t1, 1
-        j diag_up_y_loop
+            addi $t0, $t0, -20
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j diag_up_y_loop
+            
     end_diag_up_y_loop:
     
     jr $ra
@@ -1418,8 +1591,129 @@ end_check_game_over:
     jr $ra
 
 game_over:
+    jal game_over_sfx
+    
+    jal paint_gems
+    
     li $v0, 10
     syscall
+
+paint_gems:
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 132          # First cell of the first row
+    
+    li $t1, 0                   # y index
+    lw $t2, FIELD_HEIGHT        # y upper bound
+    paint_gems_y_loop:
+        beq $t1, $t2, end_paint_gems_y_loop
+        
+        li $t9, 12
+        div $t1, $t9        
+        mfhi $t8                # $t8 = y index % 12
+        
+        # Pick one of 12 colors based on $t8
+        
+        beq $t8, $zero, colour0
+        
+        li $t7, 1
+        beq $t8, $t7, colour1
+        
+        li $t7, 2
+        beq $t8, $t7, colour2
+        
+        li $t7, 3
+        beq $t8, $t7, colour3
+        
+        li $t7, 4
+        beq $t8, $t7, colour4
+        
+        li $t7, 5
+        beq $t8, $t7, colour5
+        
+        li $t7, 6
+        beq $t8, $t7, colour6
+        
+        li $t7, 7
+        beq $t8, $t7, colour7
+        
+        li $t7, 8
+        beq $t8, $t7, colour8
+        
+        li $t7, 9
+        beq $t8, $t7, colour9
+        
+        li $t7, 10
+        beq $t8, $t7, colour10
+        
+        j colour11
+        
+        colour0:     
+            li $t6, 0xff00ff
+            j end_colour
+        colour1:     
+            li $t6, 0xff007d
+            j end_colour
+        colour2:      
+            li $t6, 0xff0000
+            j end_colour
+        colour3:      
+            li $t6, 0xff7d00
+            j end_colour
+        colour4:      
+            li $t6, 0xffff00
+            j end_colour
+        colour5:      
+            li $t6, 0x7dff00
+            j end_colour
+        colour6:      
+            li $t6, 0x00ff00
+            j end_colour
+        colour7:      
+            li $t6, 0x00ff7d
+            j end_colour
+        colour8:      
+            li $t6, 0x00ffff
+            j end_colour
+        colour9:      
+            li $t6, 0x007dff
+            j end_colour
+        colour10:      
+            li $t6, 0x0000ff
+            j end_colour
+        colour11:      
+            li $t6, 0x7d00ff
+            j end_colour
+        
+        end_colour:
+        
+        li $t3, 0               # x index
+        lw $t4, FIELD_WIDTH     # x upper bound
+        paint_gems_x_loop:
+            beq $t3, $t4, end_paint_gems_x_loop
+        
+            lw $t5, 0($t0)                  # Load current colour
+            beq $t5, $zero, skip_paint      # Current colour is black -> skip paint
+            
+            sw $t6, 0($t0)                  # Paint current gem
+            
+            li $v0, 32
+            li $a0, 17      # Sleep for 1 frame
+            syscall
+            
+            skip_paint:
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j paint_gems_x_loop
+            
+        end_paint_gems_x_loop:
+            sll $t8, $t4, 2         # Width times 4
+            sub $t0, $t0, $t8
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j paint_gems_y_loop
+            
+    end_paint_gems_y_loop:
+        jr $ra
 
 outline:
     # $a0 = current position of the first cell of the column
@@ -1530,10 +1824,177 @@ end_erase_outline:
     sw $zero, ADDR_OUTLINE_2
     jr $ra
 
+stop_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+
+    li $a0, 76
+    li $a1, 40
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
+    syscall
+
+    li $a0, 68
+    li $a1, 50
+    li $a2, 80
+    li $a3, 110
+    li $v0, 31
+    syscall
+
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+shift_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    li $a0, 60
+    li $a1, 30
+    li $a2, 115
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    li $a0, 64
+    li $a1, 30
+    li $a2, 115
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    li $a0, 67
+    li $a1, 45
+    li $a2, 115
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+match_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    li $a0, 76
+    li $a1, 70
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
+    syscall
+    
+    li $a0, 83
+    li $a1, 70
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
+    syscall
+    
+    li $a0, 88
+    li $a1, 90
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
+    syscall
+    
+    li $a0, 95
+    li $a1, 130
+    li $a2, 80
+    li $a3, 125
+    li $v0, 31
+    syscall
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+game_over_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    li $a0, 79
+    li $a1, 260
+    li $a2, 81
+    li $a3, 115
+    li $v0, 31
+    syscall
+    
+    li $a0, 160
+    li $v0, 32
+    syscall
+    
+    li $a0, 76
+    li $a1, 280
+    li $a2, 81
+    li $a3, 110
+    li $v0, 31
+    syscall
+    
+    li $a0, 180
+    li $v0, 32
+    syscall
+    
+    li $a0, 72
+    li $a1, 320
+    li $a2, 81
+    li $a3, 105
+    li $v0, 31
+    syscall
+    
+    li $a0, 220
+    li $v0, 32
+    syscall
+    
+    li $a0, 67
+    li $a1, 380
+    li $a2, 81
+    li $a3, 100
+    li $v0, 31
+    syscall
+    
+    li $a0, 260
+    li $v0, 32
+    syscall
+    
+    li $a0, 60
+    li $a1, 700
+    li $a2, 81
+    li $a3, 95
+    li $v0, 31
+    syscall
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
 game_loop:
     lw $t1, ADDR_KBRD               # $t1 = base address for keyboard
     lw $t8, 0($t1)                  # Load first word from keyboard
     beq $t8, 1, keyboard_input      # If first word 1, key is pressed
+    
     end_key:
         lw $t1, 0($sp)
         beq $t1, $zero, game_loop
@@ -1545,13 +2006,15 @@ game_loop:
         jal outline     # Create outline
     
     	j repaint  
-	end_repaint:
-    	li $v0, 32                      # Set to sleep value
-    	li $a0, 17                      # Sleeps for 17 millisecond which is about 1/60 of a second
-    	syscall
-    	lw $t1, GRAVITY_TICK
-    	add $s5, $s5, $t1               # Increment gravity timer
-    	beq $s5, $s6, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
+    	
+    	end_repaint:
+        	li $v0, 32                      # Set to sleep value
+        	li $a0, 17                      # Sleeps for 17 millisecond which is about 1/60 of a second
+        	syscall    
+        	    
+        	lw $t1, GRAVITY_TICK
+        	add $s5, $s5, $t1               # Increment gravity timer
+        	beq $s5, $s6, gravity           # If its been 1.02 seconds uninterrupted by any falling inputs move column down 
     
-        # 5. Go back to Step 1
-        j game_loop
+            # 5. Go back to Step 1
+            j game_loop

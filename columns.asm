@@ -54,7 +54,7 @@ BORDER:
     .word 0x555555
 
 OUTLINE:
-    .word 0xffffff
+    .word 0x555555
     
 FIELD_WIDTH:
     .word 7
@@ -788,10 +788,17 @@ main:
     	j move_left
     respond_to_S:       # Moves the column down by 1 unit
         move $t0, $t6
-    
-        lw $t2, BORDER
-        lw $t3, 384($t0)
-        beq $t2, $t3, end_key
+        addi $t1, $t0, 384
+        
+        lw $t2, ADDR_DSPL
+        lw $t3, FIELD_HEIGHT
+        addi $t3, $t3, 1
+        sll $t3, $t3, 7         # (field height + 1) * 128
+        add $t2, $t2, $t3       # First cell of the bottom border
+        sub $t1, $t1, $t2       # Current address - first cell of the bottom border
+        
+        bgtz $t1, end_key       # $t1 is greater than 0 -> Column hit the border
+        
     	j move_down
     respond_to_D:       # Moves the column right by 1 unit
         lw $t2, BORDER
@@ -866,12 +873,29 @@ move_down:
         j next_down
     
 check_bottom:
-    lw $t1, 384($t0)
+    lw $t1, 384($t0)        # Colour
+    addi $t2, $t0, 384      # Address
     
     beq $t1, $zero, empty   # empty -> keep falling
     
-    lw  $t2, OUTLINE
-    beq $t1, $t2, empty     # outline -> keep falling
+    # lw $t3, ADDR_DSPL
+    # lw $t4, FIELD_HEIGHT
+    # addi $t4, $t4, 1
+    # sll $t4, $t4, 7         # (field height + 1) * 128
+    # add $t3, $t3, $t4       # First cell of the bottom border
+    # sub $t2, $t2, $t3       # Current address - first cell of the border
+    
+    # bgtz $t2, stop          # Column hit the border
+
+    # If the address equals to the address of the outline then it's empty
+    lw $t3, ADDR_OUTLINE_2
+    beq $t2, $t3, empty
+    
+    lw $t3, ADDR_OUTLINE_1
+    beq $t2, $t3, empty
+    
+    lw $t3, ADDR_OUTLINE_0
+    beq $t2, $t3, empty
     
     j stop
     

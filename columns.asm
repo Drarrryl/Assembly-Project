@@ -1160,9 +1160,7 @@ check_matches:
     li $t2, 0           # Count loops
     
     loop_clear_matches:     # Find matches until no matches found
-    
         # Store $t2 in $sp when calling a function
-        
         addi $sp, $sp, -4
         sw $t2, 0($sp)      # Store $t2
         jal clear_matches   # Delete matches
@@ -1571,8 +1569,127 @@ end_check_game_over:
 game_over:
     jal game_over_sfx
     
+    jal paint_gems
+    
     li $v0, 10
     syscall
+
+paint_gems:
+    lw $t0, ADDR_DSPL
+    addi $t0, $t0, 132          # First cell of the first row
+    
+    li $t1, 0                   # y index
+    lw $t2, FIELD_HEIGHT        # y upper bound
+    paint_gems_y_loop:
+        beq $t1, $t2, end_paint_gems_y_loop
+        
+        li $t9, 12
+        div $t1, $t9        
+        mfhi $t8                # $t8 = y index % 12
+        
+        # Pick one of 12 colors based on $t8
+        
+        beq $t8, $zero, colour0
+        
+        li $t7, 1
+        beq $t8, $t7, colour1
+        
+        li $t7, 2
+        beq $t8, $t7, colour2
+        
+        li $t7, 3
+        beq $t8, $t7, colour3
+        
+        li $t7, 4
+        beq $t8, $t7, colour4
+        
+        li $t7, 5
+        beq $t8, $t7, colour5
+        
+        li $t7, 6
+        beq $t8, $t7, colour6
+        
+        li $t7, 7
+        beq $t8, $t7, colour7
+        
+        li $t7, 8
+        beq $t8, $t7, colour8
+        
+        li $t7, 9
+        beq $t8, $t7, colour9
+        
+        li $t7, 10
+        beq $t8, $t7, colour10
+        
+        j colour11
+        
+        colour0:     
+            li $t6, 0xff00ff
+            j end_colour
+        colour1:     
+            li $t6, 0xff007d
+            j end_colour
+        colour2:      
+            li $t6, 0xff0000
+            j end_colour
+        colour3:      
+            li $t6, 0xff7d00
+            j end_colour
+        colour4:      
+            li $t6, 0xffff00
+            j end_colour
+        colour5:      
+            li $t6, 0x7dff00
+            j end_colour
+        colour6:      
+            li $t6, 0x00ff00
+            j end_colour
+        colour7:      
+            li $t6, 0x00ff7d
+            j end_colour
+        colour8:      
+            li $t6, 0x00ffff
+            j end_colour
+        colour9:      
+            li $t6, 0x007dff
+            j end_colour
+        colour10:      
+            li $t6, 0x0000ff
+            j end_colour
+        colour11:      
+            li $t6, 0x7d00ff
+            j end_colour
+        
+        end_colour:
+        
+        li $t3, 0               # x index
+        lw $t4, FIELD_WIDTH     # x upper bound
+        paint_gems_x_loop:
+            beq $t3, $t4, end_paint_gems_x_loop
+        
+            lw $t5, 0($t0)                  # Load current colour
+            beq $t5, $zero, skip_paint      # Current colour is black -> skip paint
+            
+            sw $t6, 0($t0)                  # Paint current gem
+            
+            li $v0, 32
+            li $a0, 17      # Sleep for 1 frame
+            syscall
+            
+            skip_paint:
+                addi $t0, $t0, 4
+                addi $t3, $t3, 1
+                j paint_gems_x_loop
+            
+        end_paint_gems_x_loop:
+            sll $t8, $t4, 2         # Width times 4
+            sub $t0, $t0, $t8
+            addi $t0, $t0, 128
+            addi $t1, $t1, 1
+            j paint_gems_y_loop
+            
+    end_paint_gems_y_loop:
+        jr $ra
 
 outline:
     # $a0 = current position of the first cell of the column
@@ -1684,28 +1801,38 @@ end_erase_outline:
     jr $ra
 
 stop_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
     addi $sp, $sp, -4
-    sw   $ra, 0($sp)
+    sw $ra, 0($sp)
 
-    li   $a0, 76
-    li   $a1, 40
-    li   $a2, 80
-    li   $a3, 120
-    li   $v0, 31
+    li $a0, 76
+    li $a1, 40
+    li $a2, 80
+    li $a3, 120
+    li $v0, 31
     syscall
 
-    li   $a0, 68
-    li   $a1, 50
-    li   $a2, 80
-    li   $a3, 110
-    li   $v0, 31
+    li $a0, 68
+    li $a1, 50
+    li $a2, 80
+    li $a3, 110
+    li $v0, 31
     syscall
 
-    lw   $ra, 0($sp)
+    lw $ra, 0($sp)
     addi $sp, $sp, 4
-    jr   $ra
+    jr $ra
 
 shift_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     
@@ -1735,6 +1862,11 @@ shift_sfx:
     jr $ra
 
 match_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     
@@ -1771,6 +1903,11 @@ match_sfx:
     jr $ra
 
 game_over_sfx:
+    # $a0 = pitch 
+    # $a1 = duration 
+    # $a2 = instrument 
+    # $a3 = volume
+    
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     

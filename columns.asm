@@ -2176,6 +2176,10 @@ restart:
     li $a3, 5
     jal clear_rect
     
+    li $s0, 0
+    li $s1, 0
+    jal update_score
+    
     j main
 
 game_loop:
